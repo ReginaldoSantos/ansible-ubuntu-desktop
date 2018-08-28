@@ -1,0 +1,215 @@
+---
+- hosts: localhost
+
+  become: true
+
+  vars:
+    usuario: "{{ lookup('env','USER') }}"
+
+  tasks:
+
+  - name: Apt-keys
+    apt_key: 
+      url: "{{ item }}" 
+      state: present
+    with_items:
+      - "https://download.docker.com/linux/ubuntu/gpg"
+      - "https://dl-ssl.google.com/linux/linux_signing_key.pub"
+      - "https://repo.skype.com/data/SKYPE-GPG-KEY"
+
+  - name: Skype repository
+    lineinfile:
+       path: /etc/apt/sources.list.d/skype-unstable.list
+       line: "deb [arch=amd64] https://repo.skype.com/deb unstable main"
+       create: yes
+
+  - name: Docker CE repository
+    apt_repository:
+      repo:  "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
+      state: present
+
+  - name: Add PPAs
+    apt_repository:
+      repo: '{{ item }}'
+    validate_certs: no
+    with_items:
+      - ppa:noobslab/icons
+      - ppa:gencfsm
+      - ppa:otto-kesselgulasch/gimp-edge
+      - ppa:graphics-drivers/ppa
+      - ppa:daniruiz/flat-remix
+
+    ignore_errors: yes
+
+  - name: Trusty PPAs
+    apt_repository:
+      repo: '{{ item }}'
+      codename: trusty
+    validate_certs: no
+    with_items:
+      - ppa:gnome-terminator/nightly-gtk3
+      - ppa:noobslab/themes 
+      - ppa:videolan/stable-daily
+    ignore_errors: yes
+
+  - name: Upgrade packages
+    apt:
+      upgrade: yes
+      dpkg_options: 'force-confold,force-confdef'
+      autoremove: yes
+      update_cache: yes
+    ignore_errors: yes
+
+  - name: Remove unity look
+    apt:
+      state: absent
+      name: gnome-shell-extension-ubuntu-dock
+
+  - name: Install Packages
+    apt:
+      name: "{{ item }}"
+      state: latest
+      dpkg_options: 'force-confdef,force-confold'
+    with_items:
+      - flat-remix
+      - flat-remix-gnome
+      - flat-remix-gtk
+      - fonts-powerline
+      - fonts-fantasque-sans
+      - python-pip
+      - vim
+      - git
+      - gnome-tweak-tool
+      - google-chrome-stable
+      - chrome-gnome-shell
+      - gnome-shell-extensions
+      - lm-sensors
+      - gnome-shell-extension-weather
+      - terminator
+      - gnome-encfs-manager
+      - curl
+      - apt-transport-https
+      - ca-certificates
+      - software-properties-common
+      - vlc
+      - ubuntu-make
+      - gimp
+      - network-manager-openvpn-gnome
+      - deluge
+      - skypeforlinux
+      - htop
+      - docker-ce
+
+  - name: Install Keybase
+    apt:
+      deb: "{{ item }}"
+    with_items:
+      - https://prerelease.keybase.io/keybase_amd64.deb
+
+  - name: powerline-shell pip
+    state: latest
+    pip:
+      name: powerline-shell
+
+  - name: Sudoers
+    lineinfile:
+       path: /etc/sudoers
+       line: "{{ usuario }} ALL=(ALL) NOPASSWD:ALL"
+       insertafter: EOF
+       validate: '/usr/sbin/visudo -cf %s'
+
+  - name: Add {{ usuario }} to docker group
+    user:
+      name: "{{ usuario }}"
+      groups: "docker"
+      append: yes
+
+  - name: Terminator Nord theme
+    git:
+      repo: https://github.com/arcticicestudio/nord-terminator.git
+      dest: /tmp/nord
+  - file:
+      path: '/home/{{ usuario }}/.config/terminator'
+      state: directory
+      owner: '{{ usuario }}'
+      group: '{{ usuario }}'
+      mode: 0755
+  - copy:
+      src: '/tmp/nord/src/config'
+      dest: '/home/{{ usuario }}/.config/terminator/config'
+      owner: "{{ usuario }}"
+      group: "{{ usuario }}"
+      mode: 0644
+  - replace:
+      dest: '/home/{{ usuario }}/.config/terminator/config'
+      regexp: 'nord'
+      replace: 'default'
+  - lineinfile:
+      dest: '/home/{{ usuario }}/.config/terminator/config'
+      regexp: '^background_color'
+      insertafter: '^background_color'
+      line: "    {{ item.property }} = {{ item.value }}"
+    with_items: 
+      - { property: 'background_darkness', value: '0.9' }
+      - { property: 'background_type',     value: 'transparent' }
+      - { property: 'scrollback_lines',    value: '50000' }
+      - { property: 'font',                value: 'Liberation Mono 8' }
+      - { property: 'use_system_font',     value: 'False' }
+
+  - name: Habilita hot corner
+    become_user: "{{ usuario }}" 
+    dconf:
+      key: "/org/gnome/shell/enable-hot-corners"
+      value:  "true"
+    ignore_errors: yes 
+
+  - name: Configura powerline-shell
+    blockinfile:
+      path: /etc/bash.bashrc
+      insertafter: EOF
+      content: |
+        function _update_ps1() {
+          PS1=$(powerline-shell $?)
+        }
+        if [[ $TERM != linux && ! $PROMPT_COMMAND =~ _update_ps1 ]]; then
+           PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
+        fi
+
+  - name: Git gnome-shell-extension-freon
+    become_user: "{{ usuario }}"
+    git:
+      repo: https://github.com/UshakovVasilii/gnome-shell-extension-freon.git
+      depth: 1
+      version: master
+      update: yes
+      force: yes
+      dest: '/tmp/freon'
+
+  - name: Copy Freon
+    become_user: "{{ usuario }}"
+    copy:
+      src: "/tmp/freon/freon@UshakovVasilii_Github.yahoo.com"
+      dest: "/home/{{ usuario }}/.local/share/gnome-shell/extensions"
+      owner: "{{ usuario }}"
+      force: yes
+
+  - name: Git easyscreencast
+    become_user: "{{ usuario }}"
+    git:
+      repo: https://github.com/EasyScreenCast/EasyScreenCast.git
+      depth: 1
+      version: master
+      update: yes
+      force: yes
+      dest: '/tmp/easyscreencast'
+
+  - name: Install & enable easyscreencast
+    become_user: "{{ usuario }}"
+    shell: |
+      cd /tmp/easyscreencast
+      make
+      make install
+      gnome-shell-extension-tool -e EasyScreenCast@iacopodeenosee.gmail.com
+      exit 0
+
+
