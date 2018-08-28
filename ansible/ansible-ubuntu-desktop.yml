@@ -80,7 +80,7 @@
       - vim
       - git
       - gnome-tweak-tool
-      - google-chrome-stable
+#      - google-chrome-stable
       - chrome-gnome-shell
       - gnome-shell-extensions
       - lm-sensors
