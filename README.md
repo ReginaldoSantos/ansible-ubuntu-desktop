@@ -50,3 +50,7 @@ ansible-playbook ansible-ubuntu-desktop.yml
 ```
 
 
+I'm still learning ansible, so I'm afraid this isn't a good start for anyone.
+If looking for robust stuff, give [this project](https://github.com/lvancrayelynghe/ansible-ubuntu) a try ;-)
+
+
